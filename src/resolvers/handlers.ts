@@ -1,5 +1,7 @@
 import { DecisionService, ValidationError } from '../domain/decisions';
 import { DecisionInput, DecisionLink } from '../domain/types';
+import { ConflictStore } from '../domain/conflict';
+import { buildGraph } from '../domain/graph';
 
 export interface Ctx { accountId?: string; extension?: Record<string, any> }
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -22,7 +24,11 @@ export function contextTarget(ctx: Ctx): DecisionLink | undefined {
   return undefined;
 }
 
-export interface HandlerHooks { onContextView?: (t: DecisionLink) => Promise<void> }
+export interface HandlerHooks {
+  onContextView?: (t: DecisionLink) => Promise<void>;
+  conflicts?: ConflictStore;
+  labels?: (issueKeys: string[], pageIds: string[]) => Promise<Record<string, string>>;
+}
 
 export function buildHandlers(svc: DecisionService, hooks: HandlerHooks = {}) {
   return {
@@ -50,5 +56,49 @@ export function buildHandlers(svc: DecisionService, hooks: HandlerHooks = {}) {
         return svc.link(p.id, l);
       }),
     unlinkDecision: (p: { id: string; link: DecisionLink }) => wrap(() => svc.unlink(p.id, p.link)),
+    // F6: conflicts flagged by the comment trigger for the issue in context
+    listConflicts: (_p: unknown, ctx: Ctx) =>
+      wrap(async () => {
+        const t = contextTarget(ctx);
+        return t?.type === 'jira-issue' && hooks.conflicts ? hooks.conflicts.list(t.id) : [];
+      }),
+    dismissConflict: (p: { commentRef: string; decisionId: string }, ctx: Ctx) =>
+      wrap(async () => {
+        const t = contextTarget(ctx);
+        if (t?.type !== 'jira-issue' || !hooks.conflicts) throw new ValidationError('Conflicts are only available on Jira issues');
+        const rest = (await hooks.conflicts.list(t.id)).filter((c) => !(c.commentRef === p.commentRef && c.decisionId === p.decisionId));
+        await hooks.conflicts.save(t.id, rest);
+        return rest;
+      }),
+    /** Record the change of course as a new accepted decision that supersedes the old one. */
+    supersedeFromConflict: (p: { commentRef: string; decisionId: string; title?: string; rationale?: string }, ctx: Ctx) =>
+      wrap(async () => {
+        const t = contextTarget(ctx);
+        if (t?.type !== 'jira-issue' || !hooks.conflicts) throw new ValidationError('Conflicts are only available on Jira issues');
+        const all = await hooks.conflicts.list(t.id);
+        const c = all.find((x) => x.commentRef === p.commentRef && x.decisionId === p.decisionId);
+        if (!c) throw new ValidationError('Conflict not found (already resolved?)');
+        const old = await svc.get(c.decisionId);
+        if (!old) throw new ValidationError(`Decision not found: ${c.decisionId}`);
+        const topic = old.title.match(/\s(for|as|in|on)\s.+$/i)?.[0] ?? '';
+        const d = await svc.create({
+          title: p.title?.trim() || `Use ${c.proposed}${topic}`,
+          rationale: p.rationale?.trim() || `Supersedes "${old.title}". Raised in comment: ${c.excerpt}`,
+          options: old.options, status: 'accepted', supersedes: old.id,
+          links: [...old.links], sources: [c.commentRef],
+        }, ctx.accountId);
+        await hooks.conflicts.save(t.id, all.filter((x) => x !== c));
+        return d;
+      }),
+    // F5: traceability graph (optionally scoped to the Jira project in context)
+    traceGraph: (p: { project?: string } | undefined, ctx: Ctx) =>
+      wrap(async () => {
+        const ds = await svc.list({});
+        const project = p?.project ?? ctx.extension?.project?.key;
+        const keys = [...new Set(ds.flatMap((d) => d.links.filter((l) => l.type === 'jira-issue').map((l) => l.id)))];
+        const pages = [...new Set(ds.flatMap((d) => d.links.filter((l) => l.type === 'confluence-page').map((l) => l.id)))];
+        const labels = hooks.labels ? await hooks.labels(keys, pages).catch(() => ({})) : {};
+        return buildGraph(ds, labels, { project });
+      }),
   };
 }

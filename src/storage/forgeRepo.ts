@@ -21,7 +21,9 @@ export class ForgeRepo implements DecisionRepo {
     const prev = await this.get(d.id);
     const before = new Set((prev?.links ?? []).map(linkKey));
     const after = new Set(d.links.map(linkKey));
-    await kvs.entity<Decision>(DECISION).set(d.id, d);
+    // custom entities reject empty/undefined attribute values; drop them
+    const clean = Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined && v !== null && v !== '')) as Decision;
+    await kvs.entity<Decision>(DECISION).set(d.id, clean);
     for (const t of after) if (!before.has(t)) await kvs.entity<LinkRow>(LINK).set(rowKey(d.id, t), { decisionId: d.id, target: t });
     for (const t of before) if (!after.has(t)) await kvs.entity<LinkRow>(LINK).delete(rowKey(d.id, t));
   }

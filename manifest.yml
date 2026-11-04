@@ -16,6 +16,26 @@ modules:
         - path: count
           type: number
           searchAlias: decisionCount
+  jira:projectPage:
+    - key: decisiontrail-trace-project
+      resource: trace-page
+      resolver:
+        function: resolver
+      render: native
+      title: Decision trace
+  confluence:globalPage:
+    - key: decisiontrail-trace-global
+      resource: trace-page
+      resolver:
+        function: resolver
+      render: native
+      title: Decision trace
+      route: decision-trace
+  trigger:
+    - key: decisiontrail-conflict-guard
+      function: conflict-guard-fn
+      events:
+        - avi:jira:commented:issue
   macro:
     - key: decisiontrail-decision-log
       resource: decision-log
@@ -191,11 +211,15 @@ modules:
       handler: rovo/actions.extractDecisions
     - key: explain-why-fn
       handler: rovo/actions.explainWhy
+    - key: conflict-guard-fn
+      handler: resolvers/index.conflictGuard
 resources:
   - key: issue-panel
     path: src/frontend/issuePanel.tsx
   - key: decision-log
     path: src/frontend/decisionLog.tsx
+  - key: trace-page
+    path: src/frontend/tracePage.tsx
   - key: decision-log-config
     path: src/frontend/decisionLogConfig.tsx
 app:

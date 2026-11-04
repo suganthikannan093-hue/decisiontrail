@@ -168,3 +168,22 @@ DecisionTrail uses **Jira as the shared system of record**. It uses only Atlassi
   - The Why agent answers only from these facts. Any agent that lists the action can reuse it.
 - **Storage and LLM:** decisions gain an optional `sources` attribute, declared in the entity schema. All LLM work runs in Rovo, with no egress.
 - **Demo data:** `scripts/seed-acme-comments.ts` posts the fictional Acme Kafka-vs-RabbitMQ thread (`scripts/demo-thread.ts`) to ACME-1. It is idempotent.
+
+## M4: Conflict guard (F6) and traceability graph (F5)
+
+**Conflict guard.** The `trigger` module `decisiontrail-conflict-guard` listens for `avi:jira:commented:issue` and runs `conflict-guard-fn` (`resolvers/index.conflictGuard`). The flow:
+
+1. `runGuard` reads the comment as the app. It skips app-authored comments and anything carrying `GUARD_MARKER`, which prevents loops.
+2. It runs `detectConflicts` against the issue's accepted decisions. That function flags phrases that move toward a rejected option ("switch to / use / go with X") or away from the chosen one ("drop / replace / move away from X").
+3. New flags are stored in KVS under `conflicts:<issueKey>`. They're deduped on comment and decision, and only the last 50 are kept.
+4. The guard posts one warning-panel comment that @mentions the decision owner.
+
+The issue panel shows each flag with two actions:
+- **Record superseding decision** creates an accepted decision with `supersedes` set and the comment in `sources`. The old decision becomes superseded.
+- **Dismiss** removes the flag.
+
+**Trace graph.** `buildGraph` turns decisions into nodes (decision, issue, page) and edges (affects, documented-in, supersedes). It also produces supersession lineages and stats. The graph shows on two pages:
+- `jira:projectPage`, scoped to the current project. A project filter keeps whole supersession chains.
+- `confluence:globalPage` (route `decision-trace`), which shows all decisions.
+
+Both pages are rendered with UI Kit, so no graph library is needed. Labels come from asUser JQL (`key in (...)`) and the Confluence v2 pages API. If label lookup fails, the page falls back to IDs. M4 adds no new scopes and no egress.
