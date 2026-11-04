@@ -20,6 +20,8 @@ export interface Decision {
   links: DecisionLink[];
   supersedes?: string; // id of an earlier decision
   supersededBy?: string;
+  /** citations to source comments, e.g. "jira:ACME-1#10001" or "confluence:360449#98305" */
+  sources?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,7 @@ export interface DecisionInput {
   date?: string;
   links?: DecisionLink[];
   supersedes?: string;
+  sources?: string[];
 }
 
 /** Storage-agnostic repository so domain logic is unit-testable. */

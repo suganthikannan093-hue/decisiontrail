@@ -153,3 +153,18 @@ DecisionTrail uses **Jira as the shared system of record**. It uses only Atlassi
 - **Confluence install (`FederatedRepo`):** reads merge the local Confluence store with `POST /rest/api/3/search/jql`, using `issue.property[decisiontrail].count > 0` and `properties=decisiontrail`. The search runs as **asUser**, so viewers only see decisions on issues they can see in Jira. The two sources are deduplicated by id, and the newest `updatedAt` wins. Writes stay local. If Jira can't be reached, the macro falls back to local data.
 - **Resolver routing:** the resolver picks the repo per call from the extension context (`macro`/content → Confluence, otherwise Jira). Rovo actions pick it from `payload.context.confluence`.
 - **Install requirement:** the app must be installed in both Jira and Confluence on the same site. After a scope change, run `forge install --upgrade` on both.
+
+## M3: Rovo capture (F1) and "Why?" (F2)
+
+- **Agents:** `DecisionTrail Capture` (`decisiontrail-agent`) and `DecisionTrail Why` (`decisiontrail-why-agent`).
+- **`extract-decisions`** (`src/rovo/actions.ts` → `src/jira/comments.ts` → `src/domain/capture.ts`):
+  - Reads the issue's summary, description and comments as the user (`requestJira`), or a page's footer comments (`requestConfluence` v2, scopes `read:page:confluence` and `read:comment:confluence`).
+  - Flattens ADF and storage format to text.
+  - Returns the thread plus heuristic candidates (title, chosen option, options, rationale, owner, date, confidence, source comment refs such as `jira:ACME-1#10004`).
+  - It **saves nothing**. The agent proposes decisions, the user confirms, and the agent then calls `save-decision` with `sources`.
+- **`explain-why`** (`src/domain/explain.ts`):
+  - Ranks recorded decisions against the question by keyword overlap, favouring titles and accepted decisions.
+  - Returns cited facts: decision id and date, rationale, options, linked issue/page URLs (base URL from `serverInfo`), source comments, and supersession in both directions.
+  - The Why agent answers only from these facts. Any agent that lists the action can reuse it.
+- **Storage and LLM:** decisions gain an optional `sources` attribute, declared in the entity schema. All LLM work runs in Rovo, with no egress.
+- **Demo data:** `scripts/seed-acme-comments.ts` posts the fictional Acme Kafka-vs-RabbitMQ thread (`scripts/demo-thread.ts`) to ACME-1. It is idempotent.

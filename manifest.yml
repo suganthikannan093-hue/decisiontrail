@@ -29,23 +29,59 @@ modules:
         render: native
   rovo:agent:
     - key: decisiontrail-agent
-      name: DecisionTrail
-      description: Captures team decisions from Jira and Confluence and explains why
-        things were decided.
+      name: DecisionTrail Capture
+      description: Reads an issue's or page's comment thread, proposes structured
+        decisions and saves the ones you confirm.
       prompt: >
-        You are DecisionTrail, an assistant that helps teams record and recall
-        decisions. When the user describes or points to a decision (what was
-        chosen, why, which options were rejected), summarise it as a short
-        title, a rationale and the options considered, confirm with the user,
-        then call the save-decision action. When the user asks why something is
-        the way it is, call find-decisions and answer citing decision ids and
-        dates. Never invent decisions.
+        You are DecisionTrail Capture. You turn discussion threads into recorded
+        team decisions.
+
+        1. When asked to capture or record decisions, call extract-decisions for
+        the current Jira issue or Confluence page (or the key/id the user gives).
+
+        2. From the thread and the candidate list it returns, propose each
+        decision as: Title (one line, "Use X for Y"), Chosen option, Options
+        considered, Rationale (the trade-offs, in the thread's own words),
+        Owner, Date, Confidence, Sources (comment refs). Number them. Drop
+        candidates the thread does not support; add any clear decision the
+        heuristic missed, with its sources.
+
+        3. Ask the user which to save, and whether each is Accepted or Proposed.
+        Never save without explicit confirmation.
+
+        4. For each confirmed decision call save-decision with title, rationale,
+        options (comma separated), status, the issue key or page id, and
+        sources (space separated refs). Then report the saved ids.
+
+        Never invent decisions, owners or rationale that are not in the thread.
+        To answer "why" questions, call explain-why and cite decision ids.
       conversationStarters:
-        - Record the decision we just made on this issue
+        - Capture the decisions from this issue's comments
+        - Record the decision we just made on this page
         - Why did we choose this approach?
-        - List accepted decisions for this issue
       actions:
+        - extract-decisions
         - save-decision
+        - find-decisions
+        - explain-why
+    - key: decisiontrail-why-agent
+      name: DecisionTrail Why
+      description: Answers "why did we choose X?" from recorded decisions, with
+        citations to the decision, its source comments and linked work.
+      prompt: >
+        You are DecisionTrail Why. For any question about why something was
+        chosen, built or rejected, call explain-why with the question (and the
+        issue key if one is in context). Answer in 2-4 sentences using only
+        the returned facts. Cite each decision as [D1] with its id and date,
+        then list the linked issues/pages and source comments as citations. If
+        a decision was superseded, say what replaced it. If nothing is
+        recorded, say so plainly and offer to capture it; never guess.
+      conversationStarters:
+        - Why are we using Kafka for order events?
+        - What did we decide on this issue, and why?
+        - Which decisions were reversed?
+      actions:
+        - explain-why
         - find-decisions
   action:
     - key: save-decision
@@ -80,6 +116,17 @@ modules:
           type: string
           required: false
           description: Jira issue key to link, if not the current issue
+        pageId:
+          title: Page id
+          type: string
+          required: false
+          description: Confluence page id to link, if not the current page
+        sources:
+          title: Sources
+          type: string
+          required: false
+          description: Space-separated citation refs of the source comments, as
+            returned by extract-decisions (e.g. jira:ACME-1#10001)
     - key: find-decisions
       name: Find decisions
       function: find-decisions-fn
@@ -97,6 +144,42 @@ modules:
           type: string
           required: false
           description: Only decisions linked to this issue
+    - key: extract-decisions
+      name: Extract decisions
+      function: extract-decisions-fn
+      actionVerb: GET
+      description: Read the comment thread of a Jira issue or Confluence page and
+        return it with candidate decisions (title, options, rationale, owner,
+        date, confidence, source comment refs). Saves nothing.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: false
+          description: Jira issue key; defaults to the issue in context
+        pageId:
+          title: Page id
+          type: string
+          required: false
+          description: Confluence page id; defaults to the page in context
+    - key: explain-why
+      name: Explain why
+      function: explain-why-fn
+      actionVerb: GET
+      description: Answer a "why did we choose X?" question from recorded
+        decisions, returning rationale, options, status, supersession and
+        citations (decision ids, linked issues/pages, source comments).
+      inputs:
+        question:
+          title: Question
+          type: string
+          required: true
+          description: The user's why-question, e.g. why are we on Kafka?
+        issueKey:
+          title: Issue key
+          type: string
+          required: false
+          description: Restrict to decisions linked to this Jira issue
   function:
     - key: resolver
       handler: resolvers/index.handler
@@ -104,6 +187,10 @@ modules:
       handler: rovo/actions.saveDecision
     - key: find-decisions-fn
       handler: rovo/actions.findDecisions
+    - key: extract-decisions-fn
+      handler: rovo/actions.extractDecisions
+    - key: explain-why-fn
+      handler: rovo/actions.explainWhy
 resources:
   - key: issue-panel
     path: src/frontend/issuePanel.tsx
@@ -138,6 +225,8 @@ app:
             type: string
           supersededBy:
             type: string
+          sources:
+            type: any
           createdAt:
             type: string
           updatedAt:
@@ -168,3 +257,5 @@ permissions:
     - read:jira-work
     - write:jira-work
     - read:confluence-content.summary
+    - read:page:confluence
+    - read:comment:confluence

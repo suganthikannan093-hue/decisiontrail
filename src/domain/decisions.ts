@@ -39,6 +39,7 @@ export function normalizeInput(input: DecisionInput, now: Date): Omit<Decision, 
     date,
     links: dedupeLinks(input.links ?? []),
     supersedes: input.supersedes || undefined,
+    ...(input.sources?.length ? { sources: [...new Set(input.sources.map((x) => String(x).trim()).filter(Boolean))].slice(0, 20) } : {}),
   };
 }
 
