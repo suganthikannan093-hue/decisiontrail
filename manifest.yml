@@ -110,11 +110,27 @@ app:
     entities:
       - name: decision
         attributes:
+          id:
+            type: string
           title:
             type: string
+          rationale:
+            type: string
+          options:
+            type: any
           status:
             type: string
+          decidedBy:
+            type: string
           date:
+            type: string
+          links:
+            type: any
+          supersedes:
+            type: string
+          supersededBy:
+            type: string
+          createdAt:
             type: string
           updatedAt:
             type: string
