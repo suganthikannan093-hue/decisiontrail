@@ -22,13 +22,16 @@ modules:
   rovo:agent:
     - key: decisiontrail-agent
       name: DecisionTrail
-      description: Captures team decisions from Jira and Confluence and explains why things were decided.
+      description: Captures team decisions from Jira and Confluence and explains why
+        things were decided.
       prompt: >
-        You are DecisionTrail, an assistant that helps teams record and recall decisions.
-        When the user describes or points to a decision (what was chosen, why, which options were
-        rejected), summarise it as a short title, a rationale and the options considered, confirm with
-        the user, then call the save-decision action. When the user asks why something is the way it is,
-        call find-decisions and answer citing decision ids and dates. Never invent decisions.
+        You are DecisionTrail, an assistant that helps teams record and recall
+        decisions. When the user describes or points to a decision (what was
+        chosen, why, which options were rejected), summarise it as a short
+        title, a rationale and the options considered, confirm with the user,
+        then call the save-decision action. When the user asks why something is
+        the way it is, call find-decisions and answer citing decision ids and
+        dates. Never invent decisions.
       conversationStarters:
         - Record the decision we just made on this issue
         - Why did we choose this approach?
@@ -41,7 +44,8 @@ modules:
       name: Save decision
       function: save-decision-fn
       actionVerb: CREATE
-      description: Save a structured team decision (title, rationale, options) and link it to the current Jira issue or Confluence page.
+      description: Save a structured team decision (title, rationale, options) and
+        link it to the current Jira issue or Confluence page.
       inputs:
         title:
           title: Title
@@ -72,7 +76,8 @@ modules:
       name: Find decisions
       function: find-decisions-fn
       actionVerb: GET
-      description: Search recorded decisions by text or by Jira issue key, returning status, date, id and rationale.
+      description: Search recorded decisions by text or by Jira issue key, returning
+        status, date, id and rationale.
       inputs:
         query:
           title: Query
@@ -101,28 +106,38 @@ resources:
 app:
   runtime:
     name: nodejs22.x
-  id: ari:cloud:ecosystem::app/PLACEHOLDER
   storage:
     entities:
       - name: decision
         attributes:
-          title: { type: string }
-          status: { type: string }
-          date: { type: string }
-          updatedAt: { type: string }
+          title:
+            type: string
+          status:
+            type: string
+          date:
+            type: string
+          updatedAt:
+            type: string
         indexes:
           - name: by-updated
-            range: [updatedAt]
+            range:
+              - updatedAt
           - name: by-status
-            partition: [status]
-            range: [updatedAt]
+            partition:
+              - status
+            range:
+              - updatedAt
       - name: decisionlink
         attributes:
-          decisionId: { type: string }
-          target: { type: string }
+          decisionId:
+            type: string
+          target:
+            type: string
         indexes:
           - name: by-target
-            range: [target]
+            range:
+              - target
+  id: ari:cloud:ecosystem::app/c586bdf6-b73f-4665-9b80-a34d942d495c
 permissions:
   scopes:
     - storage:app
