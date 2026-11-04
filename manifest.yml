@@ -8,6 +8,14 @@ modules:
       render: native
       title: Decisions
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  jira:entityProperty:
+    - key: decisiontrail-issue-index
+      entityType: issue
+      propertyKey: decisiontrail
+      values:
+        - path: count
+          type: number
+          searchAlias: decisionCount
   macro:
     - key: decisiontrail-decision-log
       resource: decision-log
@@ -158,4 +166,5 @@ permissions:
   scopes:
     - storage:app
     - read:jira-work
+    - write:jira-work
     - read:confluence-content.summary

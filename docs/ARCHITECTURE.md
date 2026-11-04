@@ -141,3 +141,15 @@ flowchart LR
 - `npm run check` runs eslint, then `tsc --noEmit`, then vitest
 - The domain and handlers have no Forge imports, so they're tested against `MemoryRepo`. ForgeRepo is a thin adapter verified on the dev site
 - `forge lint` validates the manifest (it needs a Forge login)
+
+## Cross-product data flow (Jira ↔ Confluence)
+
+Forge hosted storage (KVS and custom entities) is **scoped per installation**. The Jira and Confluence installs are separate installations, even on the same site and with the same app id, so each has its own empty store. A decision saved from the Jira issue panel is therefore invisible to the Confluence macro's own store.
+
+DecisionTrail uses **Jira as the shared system of record**. It uses only Atlassian APIs, so there is no external egress and it stays eligible for Runs on Atlassian:
+
+- **Jira install (`MirroringRepo`, `src/jira/bridge.ts`):** every write still goes to the local custom-entity store. After the write, the app rewrites the `decisiontrail` issue entity property (`{count, decisions[]}`) on each affected issue via `api.asApp().requestJira` (scope `write:jira-work`). When the last decision is unlinked from an issue, the property is deleted. Opening an issue panel also refreshes that issue's property, which backfills decisions saved before the mirror existed.
+- **Index:** the `jira:entityProperty` module `decisiontrail-issue-index` indexes `count` (`decisionCount` alias), so the property can be queried with JQL.
+- **Confluence install (`FederatedRepo`):** reads merge the local Confluence store with `POST /rest/api/3/search/jql`, using `issue.property[decisiontrail].count > 0` and `properties=decisiontrail`. The search runs as **asUser**, so viewers only see decisions on issues they can see in Jira. The two sources are deduplicated by id, and the newest `updatedAt` wins. Writes stay local. If Jira can't be reached, the macro falls back to local data.
+- **Resolver routing:** the resolver picks the repo per call from the extension context (`macro`/content → Confluence, otherwise Jira). Rovo actions pick it from `payload.context.confluence`.
+- **Install requirement:** the app must be installed in both Jira and Confluence on the same site. After a scope change, run `forge install --upgrade` on both.

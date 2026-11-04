@@ -22,11 +22,14 @@ export function contextTarget(ctx: Ctx): DecisionLink | undefined {
   return undefined;
 }
 
-export function buildHandlers(svc: DecisionService) {
+export interface HandlerHooks { onContextView?: (t: DecisionLink) => Promise<void> }
+
+export function buildHandlers(svc: DecisionService, hooks: HandlerHooks = {}) {
   return {
     listForContext: (_p: unknown, ctx: Ctx) =>
       wrap(async () => {
         const t = contextTarget(ctx);
+        if (t && hooks.onContextView) await hooks.onContextView(t).catch((e) => console.warn('DecisionTrail: sync failed', e));
         return t ? { target: t, decisions: await svc.forTarget(t) } : { target: null, decisions: [] };
       }),
     listDecisions: (p: { status?: string; query?: string }) => wrap(() => svc.list(p ?? {})),

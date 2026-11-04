@@ -1,6 +1,8 @@
 import { createDecisionService, DecisionService, ValidationError } from '../domain/decisions';
 import { DecisionLink } from '../domain/types';
 import { ForgeRepo } from '../storage/forgeRepo';
+import { FederatedRepo, MirroringRepo } from '../jira/bridge';
+import { forgeJiraHttp } from '../jira/forgeHttp';
 
 /** Rovo action payload: flat string inputs as declared in manifest.yml */
 export interface SaveDecisionPayload {
@@ -43,6 +45,11 @@ export async function findDecisionsWith(svc: DecisionService, p: { query?: strin
   return ds.slice(0, 10).map((d) => `- [${d.status}] ${d.title} (${d.date}, ${d.id}): ${d.rationale || 'no rationale recorded'}`).join('\n');
 }
 
-const svc = () => createDecisionService({ repo: new ForgeRepo() });
-export const saveDecision = (payload: SaveDecisionPayload) => saveDecisionWith(svc(), payload, payload.context?.accountId);
-export const findDecisions = (payload: { query?: string; issueKey?: string }) => findDecisionsWith(svc(), payload);
+type RovoCtx = { context?: { confluence?: unknown } };
+// Confluence install reads Jira-mirrored decisions; Jira install mirrors its writes into Jira.
+const svc = (p: RovoCtx) =>
+  createDecisionService({
+    repo: p.context?.confluence ? new FederatedRepo(new ForgeRepo(), forgeJiraHttp) : new MirroringRepo(new ForgeRepo(), forgeJiraHttp),
+  });
+export const saveDecision = (payload: SaveDecisionPayload) => saveDecisionWith(svc(payload), payload, payload.context?.accountId);
+export const findDecisions = (payload: { query?: string; issueKey?: string } & RovoCtx) => findDecisionsWith(svc(payload), payload);
