@@ -1,3 +1,6 @@
 node_modules/
 .env*
 .forge*
+!.forgeignore
+.forge_creds
+coverage/
