@@ -46,7 +46,8 @@ const found: any = await call('POST', '/rest/api/3/search/jql', { jql: `project 
 let issueKey: string = found.issues?.[0]?.key;
 if (!issueKey) {
   const meta: any = dry ? { values: [{ id: 'Task', name: 'Task' }] } : await call('GET', `/rest/api/3/issue/createmeta/${KEY}/issuetypes`);
-  const type = meta.values?.find((t: any) => /task/i.test(t.name)) ?? meta.values?.[0];
+  const types = meta.issueTypes ?? meta.values ?? [];
+  const type = types.find((t: any) => /^task$/i.test(t.name)) ?? types.find((t: any) => !t.subtask) ?? types[0];
   const created: any = await call('POST', '/rest/api/3/issue', { fields: { project: { key: KEY }, summary: SUMMARY, issuetype: { id: type?.id } } });
   issueKey = created.key ?? `${KEY}-?`;
   console.log(`created issue ${issueKey}`);
