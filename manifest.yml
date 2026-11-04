@@ -285,6 +285,11 @@ app:
           - name: by-target
             range:
               - target
+  compatibility:
+    jira:
+      required: true
+    confluence:
+      required: false
   id: ari:cloud:ecosystem::app/c586bdf6-b73f-4665-9b80-a34d942d495c
 permissions:
   scopes:

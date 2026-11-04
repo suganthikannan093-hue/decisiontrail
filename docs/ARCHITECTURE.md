@@ -216,3 +216,6 @@ Link sync is best-effort, so a failure is logged and never blocks a save. This u
 **Onboarding.** Empty states explain the workflow on every surface. The Jira panel's **Load Acme demo decisions** button (`seedDemo`) creates the fictional Acme chain on the current issue, matched by title so repeat clicks don't duplicate it. `scripts/seed-judge.ts` creates the Jira project, issue, comment thread and Confluence page on a judge's site over REST using their own API token.
 
 **Storage note.** Custom entities reject empty attribute values, so `ForgeRepo.put` drops blank or undefined fields and `withDefaults` restores them on read.
+
+## Shared installation (app compatibility)
+`app.compatibility` declares Jira required and Confluence optional, so one installation (and one store) serves both products and Rovo registers each agent once. Confluence handlers and Rovo actions now read the shared store directly. The issue-property mirror is kept because it backs JQL search and lets `restoreFromMirror` re-import decisions into an empty store after a reinstall. This runs once per installation on the first resolver call and adds demo source citations. `FederatedRepo` is used only when `DT_SPLIT_INSTALLS=1` (legacy per-product installs).

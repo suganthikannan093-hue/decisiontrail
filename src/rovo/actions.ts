@@ -54,7 +54,7 @@ type RovoCtx = { context?: { confluence?: unknown } };
 // Confluence install reads Jira-mirrored decisions; Jira install mirrors its writes into Jira.
 const svc = (p: RovoCtx) =>
   createDecisionService({
-    repo: p.context?.confluence ? new FederatedRepo(new ForgeRepo(), forgeJiraHttp) : new MirroringRepo(new ForgeRepo(), forgeJiraHttp),
+    repo: p.context?.confluence && process.env.DT_SPLIT_INSTALLS === '1' ? new FederatedRepo(new ForgeRepo(), forgeJiraHttp) : new MirroringRepo(new ForgeRepo(), forgeJiraHttp),
   });
 export const saveDecision = (payload: SaveDecisionPayload) => saveDecisionWith(svc(payload), payload, payload.context?.accountId);
 export const findDecisions = (payload: { query?: string; issueKey?: string } & RovoCtx) => findDecisionsWith(svc(payload), payload);

@@ -90,3 +90,20 @@ export function merge(a: Decision[], b: Decision[]): Decision[] {
   }
   return [...m.values()];
 }
+
+/**
+ * Re-import decisions from the mirrored Jira issue properties into an empty store, e.g. after a
+ * reinstall (issue properties outlive the installation). Never overwrites decisions already stored.
+ * `enrich` may fill in fields such as demo source citations. Returns the number imported.
+ */
+export async function restoreFromMirror(inner: DecisionRepo, http: JiraHttp, enrich?: (d: Decision) => Promise<Decision>): Promise<number> {
+  let n = 0;
+  for (const prop of await http.searchIssueProperties(SEARCH_JQL)) {
+    for (const d of prop.decisions ?? []) {
+      if (await inner.get(d.id)) continue;
+      await inner.put(enrich ? await enrich(d).catch(() => d) : d);
+      n++;
+    }
+  }
+  return n;
+}
