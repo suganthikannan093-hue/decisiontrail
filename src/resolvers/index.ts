@@ -3,7 +3,7 @@ import { createDecisionService } from '../domain/decisions';
 import { ForgeRepo } from '../storage/forgeRepo';
 import { FederatedRepo, MirroringRepo } from '../jira/bridge';
 import { forgeJiraHttp } from '../jira/forgeHttp';
-import { jiraBaseUrl } from '../jira/comments';
+import { jiraBaseUrl, readIssueThread } from '../jira/comments';
 import { buildHandlers, Ctx } from './handlers';
 import { fetchLabels, kvsConflictStore, liveGuardDeps, runGuard } from '../jira/guard';
 
@@ -15,6 +15,7 @@ const jiraHandlers = buildHandlers(createDecisionService({ repo: mirror }), {
   conflicts: kvsConflictStore,
   labels: fetchLabels,
   baseUrl: jiraBaseUrl,
+  issueComments: async (key) => (await readIssueThread(key)).comments,
 });
 const confluenceHandlers = buildHandlers(createDecisionService({ repo: new FederatedRepo(local, forgeJiraHttp) }), { labels: fetchLabels, baseUrl: jiraBaseUrl });
 

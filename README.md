@@ -60,3 +60,6 @@ Architecture, storage and the cross-product flow are covered in [docs/ARCHITECTU
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+### Known issue: duplicate Rovo agents in "Browse agents"
+In the development environment the app is installed separately into Jira and Confluence on the same site. Each installation registers its own `rovo:agent` modules, so Browse agents lists DecisionTrail Capture and DecisionTrail Why twice. Either entry works the same. The planned fix is Forge multi-app compatibility (`app.compatibility: { jira: { required: true }, confluence: { required: false } }`): Jira and Confluence then share one installation (one set of agents and one store). Forge only allows that change when the app has no installations, so it requires uninstalling and reinstalling, and installations lose their stored data.

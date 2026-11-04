@@ -3,7 +3,7 @@ import { DecisionInput, DecisionLink } from '../domain/types';
 import { ConflictStore } from '../domain/conflict';
 import { buildGraph } from '../domain/graph';
 import { healthReport, toAdrMarkdown } from '../domain/health';
-import { DEMO_DECISIONS } from '../domain/demo';
+import { DEMO_DECISIONS, demoSources } from '../domain/demo';
 
 export interface Ctx { accountId?: string; extension?: Record<string, any> }
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -29,6 +29,8 @@ export function contextTarget(ctx: Ctx): DecisionLink | undefined {
 export interface HandlerHooks {
   onContextView?: (t: DecisionLink) => Promise<void>;
   conflicts?: ConflictStore;
+  /** comments on an issue, used to cite demo sources */
+  issueComments?: (issueKey: string) => Promise<{ ref: string; text: string }[]>;
   baseUrl?: () => Promise<string | undefined>;
   labels?: (issueKeys: string[], pageIds: string[]) => Promise<Record<string, string>>;
 }
@@ -121,16 +123,25 @@ export function buildHandlers(svc: DecisionService, hooks: HandlerHooks = {}) {
       wrap(async () => {
         const t = contextTarget(ctx);
         if (t?.type !== 'jira-issue') throw new ValidationError('Open a Jira issue to load the demo');
-        const have = new Set((await svc.forTarget(t)).map((d) => d.title));
+        const existing = await svc.forTarget(t);
+        const comments = hooks.issueComments ? await hooks.issueComments(t.id).catch(() => []) : [];
         const ids: Record<string, string> = {};
         let created = 0;
+        let cited = 0;
         for (const demo of DEMO_DECISIONS) {
-          if (have.has(demo.title)) continue;
-          const { ref, supersedesRef, noOwner, ...input } = demo;
-          const d = await svc.create({ ...input, supersedes: supersedesRef ? ids[supersedesRef] : undefined, links: [t] }, noOwner ? undefined : ctx.accountId);
-          ids[ref] = d.id; created++;
+          const { ref, supersedesRef, noOwner, evidence, ...input } = demo;
+          const sources = demoSources(evidence, comments);
+          const prev = existing.find((d) => d.title === demo.title);
+          if (prev) {
+            ids[ref] = prev.id;
+            // backfill citations on earlier seeds that had none
+            if (!prev.sources?.length && sources.length) { await svc.update(prev.id, { sources }); cited++; }
+            continue;
+          }
+          const d = await svc.create({ ...input, sources, supersedes: supersedesRef ? ids[supersedesRef] : undefined, links: [t] }, noOwner ? undefined : ctx.accountId);
+          ids[ref] = d.id; created++; if (sources.length) cited++;
         }
-        return { created };
+        return { created, cited };
       }),
   };
 }

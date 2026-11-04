@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@forge/bridge';
+import { DEMO_DECISIONS } from '../domain/demo';
+
+const DEMO_TITLES = new Set(DEMO_DECISIONS.map((d) => d.title));
 import {
   Badge, Box, Button, DynamicTable, Form, FormFooter, FormSection, Heading, Inline, Label, Lozenge,
   Select, SectionMessage, Stack, Text, TextArea, Textfield, useForm,
 } from '@forge/react';
 
 export interface Decision {
+  sources?: string[];
   id: string; title: string; rationale: string; options: string[]; status: string; date: string;
   links: { type: string; id: string }[]; supersedes?: string;
 }
@@ -78,12 +82,19 @@ export function ContextDecisions({ allowAdd = true }: { allowAdd?: boolean }) {
           </Stack>
         </SectionMessage>
       )}
+      {target?.type === 'jira-issue' && decisions.some((d) => DEMO_TITLES.has(d.title) && !d.sources?.length) && (
+        <Inline space="space.100" alignBlock="center">
+          <Text size="small">Demo decisions have no source comments yet.</Text>
+          <Button spacing="compact" appearance="subtle" onClick={seed}>Attach source comments</Button>
+        </Inline>
+      )}
       {decisions.map((d) => (
         <Box key={d.id} padding="space.100" xcss={{ borderColor: 'color.border', borderWidth: 'border.width', borderStyle: 'solid', borderRadius: 'radius.medium' }}>
           <Stack space="space.050">
             <Inline space="space.100" alignBlock="center"><StatusLozenge status={d.status} /><Text weight="bold">{d.title}</Text></Inline>
             {d.rationale && <Text>Why: {d.rationale}</Text>}
             {d.options.length > 0 && <Text>Options considered: {d.options.join(' · ')}</Text>}
+            {(d.sources?.length ?? 0) > 0 && <Text size="small">Sources: {d.sources!.join(', ')}</Text>}
             <Text size="small">{d.date} · {d.id}{d.supersedes ? ` · supersedes ${d.supersedes}` : ''}</Text>
             {d.status === 'proposed' && (
               <Inline space="space.100">
