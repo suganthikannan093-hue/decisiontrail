@@ -19,6 +19,8 @@ export interface JiraHttp {
   setIssueProperty(issueKey: string, value: IssueProperty): Promise<void>;
   deleteIssueProperty(issueKey: string): Promise<void>;
   searchIssueProperties(jql: string): Promise<IssueProperty[]>;
+  /** F7: replace this app's remote links on an issue (optional so tests/fakes can omit it). */
+  syncRemoteLinks?(issueKey: string, ds: Decision[]): Promise<void>;
 }
 
 export const buildIssueProperty = (ds: Decision[]): IssueProperty => ({ count: ds.length, decisions: ds });
@@ -46,6 +48,8 @@ export class MirroringRepo implements DecisionRepo {
       const ds = await this.inner.listByTarget({ type: 'jira-issue', id: key });
       if (ds.length) await this.http.setIssueProperty(key, buildIssueProperty(ds));
       else await this.http.deleteIssueProperty(key);
+      // F7 links are best-effort: a failure must never block saving a decision
+      if (this.http.syncRemoteLinks) await this.http.syncRemoteLinks(key, ds).catch((e) => console.warn('DecisionTrail remote link sync failed', key, String(e)));
     }
   }
 }

@@ -12,9 +12,13 @@ const LINK = 'decisionlink';
 
 interface LinkRow { decisionId: string; target: string; }
 
+/** Blank attributes are not stored (see put), so restore defaults on read. */
+export const withDefaults = (d: Partial<Decision>): Decision => ({ rationale: '', options: [], links: [], decidedBy: '', ...d } as Decision);
+
 export class ForgeRepo implements DecisionRepo {
   async get(id: string) {
-    return (await kvs.entity<Decision>(DECISION).get(id)) ?? undefined;
+    const d = await kvs.entity<Decision>(DECISION).get(id);
+    return d ? withDefaults(d) : undefined;
   }
 
   async put(d: Decision) {

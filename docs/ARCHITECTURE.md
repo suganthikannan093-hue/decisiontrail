@@ -187,3 +187,32 @@ The issue panel shows each flag with two actions:
 - `confluence:globalPage` (route `decision-trace`), which shows all decisions.
 
 Both pages are rendered with UI Kit, so no graph library is needed. Labels come from asUser JQL (`key in (...)`) and the Confluence v2 pages API. If label lookup fails, the page falls back to IDs. M4 adds no new scopes and no egress.
+
+## M5: Work links (F7) and decision health (F8)
+
+**Teamwork Graph: why remote links rather than the TWG API.** The Teamwork Graph *API* (Cypher or GraphQL reads, `read:graph:*` scopes) has been in Preview since 15 Oct 2026. Three constraints rule it out for now:
+- Installing an app with TWG scopes needs an organization admin.
+- The API may change on one month's notice.
+- During EAP, apps that use it couldn't be deployed to production or distributed. That would break the judges' installation link.
+
+Teamwork Graph *connectors* (`graph:connector`, `setObjects` / `setRelationships`) are meant for ingesting third-party data, and they're Jira-only.
+
+So F7 writes the decision ↔ work relationship through the supported Jira link API, which Teamwork Graph already indexes. `MirroringRepo.syncIssues` calls `JiraHttp.syncRemoteLinks`. For each issue it upserts one remote link per Confluence page that documents a decision on that issue:
+- relationship: "Decision record"
+- deterministic `globalId`: `decisiontrail:page:<id>`, which makes repeated syncs idempotent
+- stale app-owned links are deleted; links made by other apps or users are never touched
+
+Link sync is best-effort, so a failure is logged and never blocks a save. This uses `write:jira-work`, so no new scopes were added. Once the TWG API reaches GA, the `buildGraph` input can be enriched with `read:graph:issue:jira` or `read:graph:page:confluence` curated queries, adding goals and teams. Neither the domain layer nor the UI would need to change.
+
+**Health gadget.** `jira:dashboardGadget` `decisiontrail-health-gadget` calls `decisionHealth`, which wraps `healthReport`:
+- status counts
+- no owner
+- stale proposals, meaning still proposed after 14 days
+- unlinked decisions
+- reversals and the most-reversed chains
+
+`exportAdr` returns `toAdrMarkdown`: Nygard-style ADRs numbered oldest first, with a superseded decision always numbered before its replacement. Each ADR has status and supersession cross-references, absolute issue and page links (base URL from `serverInfo`), options, rationale and source citations.
+
+**Onboarding.** Empty states explain the workflow on every surface. The Jira panel's **Load Acme demo decisions** button (`seedDemo`) creates the fictional Acme chain on the current issue, matched by title so repeat clicks don't duplicate it. `scripts/seed-judge.ts` creates the Jira project, issue, comment thread and Confluence page on a judge's site over REST using their own API token.
+
+**Storage note.** Custom entities reject empty attribute values, so `ForgeRepo.put` drops blank or undefined fields and `withDefaults` restores them on read.

@@ -16,6 +16,15 @@ modules:
         - path: count
           type: number
           searchAlias: decisionCount
+  jira:dashboardGadget:
+    - key: decisiontrail-health-gadget
+      title: Decision health
+      description: Unowned, stale and reversed decisions, with ADR markdown export.
+      thumbnail: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      resource: health-gadget
+      resolver:
+        function: resolver
+      render: native
   jira:projectPage:
     - key: decisiontrail-trace-project
       resource: trace-page
@@ -218,6 +227,8 @@ resources:
     path: src/frontend/issuePanel.tsx
   - key: decision-log
     path: src/frontend/decisionLog.tsx
+  - key: health-gadget
+    path: src/frontend/healthGadget.tsx
   - key: trace-page
     path: src/frontend/tracePage.tsx
   - key: decision-log-config

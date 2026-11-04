@@ -22,11 +22,12 @@ export function ContextDecisions({ allowAdd = true }: { allowAdd?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [linkId, setLinkId] = useState('');
+  const [target, setTarget] = useState<{ type: string; id: string } | null>(null);
   const { handleSubmit, register, getFieldId } = useForm();
 
   const load = async () => {
     const r = await invoke<Res<{ decisions: Decision[] }>>('listForContext');
-    if (r.ok) setDecisions(r.data.decisions); else setError(r.error);
+    if (r.ok) { setDecisions(r.data.decisions); setTarget((r.data as any).target ?? null); } else setError(r.error);
   };
   useEffect(() => { load(); }, []);
 
@@ -40,6 +41,12 @@ export function ContextDecisions({ allowAdd = true }: { allowAdd?: boolean }) {
     });
     if (!r.ok) return setError(r.error);
     setError(null); setAdding(false); load();
+  };
+
+  const seed = async () => {
+    const r = await invoke<Res<{ created: number }>>('seedDemo');
+    if (!r.ok) return setError(r.error);
+    setError(null); load();
   };
 
   const linkExisting = async () => {
@@ -60,7 +67,17 @@ export function ContextDecisions({ allowAdd = true }: { allowAdd?: boolean }) {
       <Inline space="space.100" alignBlock="center">
         <Heading size="small">Decisions</Heading><Badge>{decisions.length}</Badge>
       </Inline>
-      {decisions.length === 0 && <Text>No decisions recorded here yet. Capture why something was decided so the team never re-argues it.</Text>}
+      {decisions.length === 0 && (
+        <SectionMessage appearance="discovery" title="Capture why, not just what">
+          <Stack space="space.100">
+            <Text>No decisions recorded here yet. A decision records what was chosen, the options considered and why, linked to the issues and pages it affects.</Text>
+            <Text>1. Use "Add decision" below, or ask the DecisionTrail Capture agent in Rovo Chat to extract decisions from this thread.</Text>
+            <Text>2. Ask the DecisionTrail Why agent "why did we choose ...?" for a cited answer.</Text>
+            <Text>3. If a later comment contradicts an accepted decision, the conflict guard flags it here.</Text>
+            {target?.type === 'jira-issue' && <Button appearance="primary" onClick={seed}>Load Acme demo decisions</Button>}
+          </Stack>
+        </SectionMessage>
+      )}
       {decisions.map((d) => (
         <Box key={d.id} padding="space.100" xcss={{ borderColor: 'color.border', borderWidth: 'border.width', borderStyle: 'solid', borderRadius: 'radius.medium' }}>
           <Stack space="space.050">
@@ -116,7 +133,7 @@ export function DecisionLog({ status }: { status?: string }) {
   return (
     <DynamicTable
       caption="Decision log"
-      emptyView={<Text>No decisions yet.</Text>}
+      emptyView={<Text>No decisions yet. Record one from a Jira issue's Decisions panel (try "Load Acme demo decisions"), or add this macro with scope "This page" to capture decisions here.</Text>}
       head={{ cells: ['Status', 'Decision', 'Why', 'Date', 'Linked to'].map((c) => ({ key: c, content: c, isSortable: c !== 'Why' })) }}
       rows={rows.map((d) => ({
         key: d.id,

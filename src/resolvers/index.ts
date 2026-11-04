@@ -3,6 +3,7 @@ import { createDecisionService } from '../domain/decisions';
 import { ForgeRepo } from '../storage/forgeRepo';
 import { FederatedRepo, MirroringRepo } from '../jira/bridge';
 import { forgeJiraHttp } from '../jira/forgeHttp';
+import { jiraBaseUrl } from '../jira/comments';
 import { buildHandlers, Ctx } from './handlers';
 import { fetchLabels, kvsConflictStore, liveGuardDeps, runGuard } from '../jira/guard';
 
@@ -13,8 +14,9 @@ const jiraHandlers = buildHandlers(createDecisionService({ repo: mirror }), {
   onContextView: (t) => (t.type === 'jira-issue' ? mirror.syncIssues([t.id]) : Promise.resolve()),
   conflicts: kvsConflictStore,
   labels: fetchLabels,
+  baseUrl: jiraBaseUrl,
 });
-const confluenceHandlers = buildHandlers(createDecisionService({ repo: new FederatedRepo(local, forgeJiraHttp) }), { labels: fetchLabels });
+const confluenceHandlers = buildHandlers(createDecisionService({ repo: new FederatedRepo(local, forgeJiraHttp) }), { labels: fetchLabels, baseUrl: jiraBaseUrl });
 
 export const isConfluence = (ctx: Ctx) => /^(macro|confluence:)/.test(String(ctx.extension?.type ?? '')) || !!ctx.extension?.content;
 
