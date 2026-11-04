@@ -1,0 +1,143 @@
+# DecisionTrail architecture
+
+DecisionTrail makes team decisions first-class objects in Atlassian Cloud. A decision records what was chosen, why, which options were rejected, who decided and when, and which Jira issues and Confluence pages it affects. Rovo can capture decisions and answer "why is it like this?". Everything runs on Forge (Runs on Atlassian): there is no egress, no external service and no third-party API key.
+
+## 1. Forge modules
+
+| Module | Key | Status | Purpose |
+|---|---|---|---|
+| `jira:issuePanel` (UI Kit) | `decisiontrail-issue-panel` | **M1-2 built** | List the issue's decisions, add one, link an existing one, accept or reject proposals |
+| `macro` (Confluence, UI Kit, with config) | `decisiontrail-decision-log` | **M1-2 built** | Live decision log table (filter by status) or "decisions linked to this page" |
+| `rovo:agent` | `decisiontrail-agent` | **Stub built** | Decision Capture and "Why?" agent with conversation starters |
+| `action` (Rovo actions, reusable by other agents) | `save-decision`, `find-decisions` | **Built** | Create a decision from flat inputs, linked to the issue or page in context; search decisions |
+| `action` | `extract-decisions`, `explain-why` | M3 | Pull candidate decisions out of a comment thread; cited answer |
+| `trigger` | `avi:jira:commented:issue`, `avi:confluence:updated:page` | M4 | Conflict and reversal guard: flag text that contradicts an accepted decision |
+| `jira:projectPage` + `confluence:globalPage` (Custom UI) | `decisiontrail-graph` | M4 | Traceability graph: decision → issues → pages → superseding decisions |
+| `jira:dashboardGadget` | `decisiontrail-health` | M5 | Decision health: no owner, stale proposals, reversal counts, ADR markdown export |
+| `jira:issueContext` / `confluence:contentBylineItem` | | M5 | Badge with the decision count |
+| `rovo:mcp` (stretch) | | M6 | Expose find/explain to IDE agents |
+
+## 2. Data model (Forge custom entities, `@forge/kvs`)
+
+```ts
+Decision {
+  id: string            // dec-<time>-<rand>
+  title: string         // 3-200 chars
+  rationale: string     // why, trade-offs (≤ 5000 chars)
+  options: string[]     // options considered (≤ 20)
+  status: 'proposed' | 'accepted' | 'superseded' | 'rejected'
+  decidedBy: string     // Atlassian accountId (defaults to the caller)
+  date: string          // YYYY-MM-DD
+  links: { type: 'jira-issue' | 'confluence-page', id: string }[]
+  supersedes?: string   // earlier decision id; that decision becomes superseded and gets supersededBy
+  supersededBy?: string
+  createdAt, updatedAt: string
+}
+```
+
+| Entity | Key | Indexes | Notes |
+|---|---|---|---|
+| `decision` | decision id | `by-updated` (range updatedAt), `by-status` (partition status, range updatedAt) | Full document |
+| `decisionlink` | `<decisionId>\|<type>:<id>` | `by-target` (range target) | One row per link, for "decisions on this issue/page" lookups. Kept in sync on every write |
+
+Planned for M5: mirror the count to an issue property (`decisiontrail`) and a content property so JQL and CQL can find issues with decisions, e.g. `issue.property[decisiontrail].count > 0`.
+
+## 3. Code layout and resolvers
+
+```
+src/domain/          pure logic: validation, CRUD, linking, supersede, sorting (no Forge imports)
+src/storage/         ForgeRepo (custom entities) and MemoryRepo (tests)
+src/resolvers/       handlers.ts (pure, testable) + index.ts (Forge Resolver wiring)
+src/rovo/actions.ts  Rovo action handlers (saveDecision, findDecisions)
+src/frontend/        UI Kit: issue panel, decision log macro, macro config
+tests/               vitest unit tests against MemoryRepo
+```
+
+Resolver functions (all return `{ok:true,data}` or `{ok:false,error}`; validation errors are shown to the user, other errors are logged and hidden):
+
+| Resolver | Payload | Behaviour |
+|---|---|---|
+| `listForContext` | none | Works out the issue key or page id from `context.extension` and returns its decisions |
+| `listDecisions` | `{status?, query?}` | Filtered, sorted log (accepted first, newest first) |
+| `getDecision` | `{id}` | |
+| `createDecision` | `{decision, linkToContext?}` | Validates, links to the current issue or page, sets `decidedBy` to the caller, handles supersede |
+| `updateDecision` | `{id, patch}` | e.g. accept or reject |
+| `deleteDecision` | `{id}` | Removes the link rows too |
+| `linkDecision` / `unlinkDecision` | `{id, link?}` | Link defaults to the current context |
+
+## 4. Permissions and scopes
+
+- `storage:app` for custom entities
+- `read:jira-work` to read issue details and comments (M3 extraction)
+- `read:confluence-content.summary` for page titles in the log
+- M4-5 additions: `write:jira-work` (issue properties), `read:page:confluence` and `write:confluence-props`, and the trigger event scopes
+- **No `external.fetch`**: the app is eligible for Runs on Atlassian, and all LLM work goes through Rovo
+- Resolvers run as the app. M3 hardening: check that the calling user can view the issue or page (`asUser()` permission check) before returning decisions linked to it
+
+## 5. Data flow
+
+```mermaid
+flowchart LR
+  subgraph Jira
+    IP[Issue panel<br/>UI Kit]
+    G[Dashboard gadget - M5]
+    PP[Project page graph - M4]
+  end
+  subgraph Confluence
+    M[Decision log macro<br/>UI Kit]
+    GP[Global page graph - M4]
+  end
+  subgraph Rovo
+    A[DecisionTrail agent]
+    SA[save-decision action]
+    FA[find-decisions action]
+    OA[Other agents reuse actions]
+  end
+  T[Triggers: comment / page events - M4]
+  R[Resolver functions]
+  D[Domain service<br/>validate · link · supersede]
+  S[(Forge custom entities<br/>decision · decisionlink)]
+  TWG[Teamwork Graph - M5]
+
+  IP -- invoke --> R
+  M -- invoke --> R
+  G --> R
+  PP --> R
+  GP --> R
+  A --> SA & FA
+  OA --> FA
+  SA --> D
+  FA --> D
+  R --> D
+  T --> D
+  D <--> S
+  D -. links .-> TWG
+```
+
+1. A user opens an issue. The panel calls `listForContext`, which reads the issue key from the extension context, queries `decisionlink.by-target` and loads the decisions.
+2. "Add decision" calls `createDecision`, which validates the input, links it to the issue, sets the caller as `decidedBy`, and marks any superseded decision.
+3. In Rovo chat, the agent turns the conversation into a structured decision and calls `save-decision` with the issue key from context. The same domain service is used, so the decision shows up in the panel and the Confluence log straight away.
+4. "Why did we pick X?" makes the agent call `find-decisions` and answer citing decision ids and dates.
+
+## 6. How it maps to the judging criteria (20% each)
+
+| Criterion | How DecisionTrail scores |
+|---|---|
+| **Technological implementation** | Several Forge modules across two products and Rovo share one domain layer. Custom entities with secondary indexes, triggers, Custom UI graph. Unit-tested, typed, linted |
+| **Design** | Native UI Kit (Atlassian design tokens, lozenges, DynamicTable), helpful empty states, one-click accept, macro config. A complete product, not a proof of concept |
+| **Potential impact** | Every team loses decisions in threads and re-argues them. ADRs without the overhead, for software and business teams. Monetised as a Marketplace app |
+| **Innovation** | Decisions become linked, queryable graph objects. Rovo captures them from conversations and answers "why?". The conflict guard warns before a decision is silently reversed |
+| **Presentation** | Demo storyline in PLAN.md §5: problem → capture → trace → ask why → guard, all inside 3 minutes, on seeded fictional "Acme" data |
+
+## 7. Bonus prizes
+
+- **Best Rovo agent:** `rovo:agent` plus reusable `action`s (save, find, extract, explain) that other agents can call
+- **Teamwork Graph:** write decision ↔ issue/page/goal relations to the graph and read them to suggest links (API surface to confirm in M5)
+- **MCP (stretch):** `rovo:mcp` exposing find and explain to IDE agents
+- **Marketplace:** Runs on Atlassian with no egress is a trust signal. Submit the listing by 13 Dec for the review-ticket link
+
+## 8. Testing and quality
+
+- `npm run check` runs eslint, then `tsc --noEmit`, then vitest
+- The domain and handlers have no Forge imports, so they're tested against `MemoryRepo`. ForgeRepo is a thin adapter verified on the dev site
+- `forge lint` validates the manifest (it needs a Forge login)
