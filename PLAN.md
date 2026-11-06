@@ -1,7 +1,6 @@
 # DecisionTrail: Codegeist 2026 build plan
 
 > A Forge app for Jira and Confluence that captures every team decision (what was decided, why, by whom, and what options were rejected) and traces it to the issues, pages and goals it affects.
-> Business model: a paid Atlassian Marketplace app (per-user tiers, with a free tier for 10 users or fewer).
 
 ## 1. Rules facts (from codegeist2026.devpost.com and /rules, read 4 Nov 2026)
 - **Submission deadline:** Tue 22 Dec 2026, 12:00 PM PT, which is **Wed 23 Dec 2026, 1:30 AM IST**. Submissions opened 27 Oct 2026.
@@ -64,7 +63,7 @@ The challenge text names "what's already been decided" and "turning organization
 | 17–25 Nov | F1 capture agent and F2 "Why?" skill (Rovo agent, actions, prompt tuning on seeded demo data) |
 | 26 Nov – 3 Dec | F5 traceability graph, F6 conflict guard (triggers) |
 | 4–9 Dec | F7 Teamwork Graph, F8 dashboard, UI polish, empty states, onboarding |
-| 10–13 Dec | Distribution: installation link, judge test instructions, seed-data script; submit the Marketplace listing (free or paid-ready) for the review ticket |
+| 10–13 Dec | Distribution: installation link, judge test instructions, seed-data script; submit the Marketplace listing for the review ticket |
 | 14–17 Dec | Demo video (target 2:45, hard cap 4:30), README, Devpost write-ups for each bonus |
 | 18–20 Dec | Fresh-site install test, bug bash, freeze |
 | **21 Dec** | Submit on Devpost (a buffer of more than 1 day before 23 Dec, 1:30 AM IST) |
@@ -75,7 +74,7 @@ The challenge text names "what's already been decided" and "turning organization
 3. **1:00–1:40 Trace:** the Confluence decision log macro, then the traceability graph across issues, pages and the superseded decision.
 4. **1:40–2:20 Ask why:** in Rovo chat, "Why are we on Postgres?" gets a cited answer. Another agent calls the DecisionTrail skill.
 5. **2:20–2:50 Guard:** a new comment contradicts an accepted decision, so the conflict flag fires and the owner is notified. Then the dashboard.
-6. **2:50–3:15 Impact and business:** who it's for, Runs on Atlassian, Marketplace pricing, and the bonus modules used.
+6. **2:50–3:15 Impact and business:** who it's for, Runs on Atlassian, installation readiness, and the bonus modules used.
 
 ## 6. Risks
 - **Rovo availability on dev sites and the Rovo/TWG API surface:** check in week 1. Fallback: a Forge LLM module or a rules-based extractor.

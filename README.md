@@ -67,4 +67,4 @@ The manifest declares `app.compatibility` with Jira required and Confluence opti
 forge install -e development -s <site> -p Jira --non-interactive --confirm-scopes
 forge install -e development -s <site> -p Confluence --non-interactive --confirm-scopes
 ```
-Both products share one installation ID and one store, so Rovo registers DecisionTrail Capture and DecisionTrail Why once, and the Confluence macro reads the same decisions directly. Jira decisions are still mirrored to the `decisiontrail` issue property, so JQL `issue.property[decisiontrail].count > 0` keeps working. Uninstalling from Jira also removes Confluence. Note: Marketplace only allows paid listings for apps with a required product.
+Both products share one installation ID and one store, so Rovo registers DecisionTrail Capture and DecisionTrail Why once, and the Confluence macro reads the same decisions directly. Jira decisions are still mirrored to the `decisiontrail` issue property, so JQL `issue.property[decisiontrail].count > 0` keeps working. Uninstalling from Jira also removes Confluence.

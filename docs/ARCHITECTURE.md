@@ -125,7 +125,7 @@ flowchart LR
 |---|---|
 | **Technological implementation** | Several Forge modules across two products and Rovo share one domain layer. Custom entities with secondary indexes, triggers, Custom UI graph. Unit-tested, typed, linted |
 | **Design** | Native UI Kit (Atlassian design tokens, lozenges, DynamicTable), helpful empty states, one-click accept, macro config. A complete product, not a proof of concept |
-| **Potential impact** | Every team loses decisions in threads and re-argues them. ADRs without the overhead, for software and business teams. Monetised as a Marketplace app |
+| **Potential impact** | Every team loses decisions in threads and re-argues them. ADRs without the overhead, for software and business teams |
 | **Innovation** | Decisions become linked, queryable graph objects. Rovo captures them from conversations and answers "why?". The conflict guard warns before a decision is silently reversed |
 | **Presentation** | Demo storyline in PLAN.md §5: problem → capture → trace → ask why → guard, all inside 3 minutes, on seeded fictional "Acme" data |
 
